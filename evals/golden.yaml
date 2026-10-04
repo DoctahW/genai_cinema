@@ -1,0 +1,290 @@
+# Golden set da avaliação.
+# Perguntas idênticas às do enunciado; `reference_sql` segue as regras de negócio do prompt do agente.
+# Em `top_k` a referência NÃO corta em k: usa LIMIT 500 para o comparador enxergar empates além da k-ésima posição.
+
+- id: fin_top10_receita_brl
+  category: Bilheteria e Finanças
+  question: Top 10 filmes com maior receita em R$
+  reference_sql: |
+    SELECT m.titulo, f.receita_brl
+    FROM fact_movies_performance AS f
+    JOIN dim_movies AS m ON m.sk_movie_id = f.sk_movie_id
+    WHERE f.receita_brl IS NOT NULL
+    ORDER BY f.receita_brl DESC
+    LIMIT 500
+  compare:
+    mode: top_k
+    key_columns: [titulo]
+    order_column: receita_brl
+    k: 10
+    value_column: receita_brl
+  notes: >-
+    "R$" usa a coluna receita_brl direto, sem conversão. top_k com k=10; a referência traz LIMIT 500
+    para enxergar empates na 10ª posição.
+
+- id: fin_lucro_medio_genero
+  category: Bilheteria e Finanças
+  question: Lucro médio por gênero, considerando apenas filmes com receita informada
+  reference_sql: |
+    SELECT g.nome_genero, AVG(f.lucro_usd) AS lucro_medio_usd
+    FROM fact_movies_performance AS f
+    JOIN bridge_movie_genre AS bg ON bg.sk_movie_id = f.sk_movie_id
+    JOIN dim_genres AS g ON g.sk_genre_id = bg.sk_genre_id
+    WHERE f.receita_usd IS NOT NULL
+    GROUP BY g.nome_genero
+    ORDER BY lucro_medio_usd DESC
+  compare:
+    mode: set
+    key_columns: [nome_genero]
+    value_column: lucro_medio_usd
+  notes: >-
+    Lucro só é confiável com receita informada (quando receita_usd é NULL o lucro vira -orçamento).
+    Média = AVG(lucro_usd) por gênero. Modo set: todos os 19 gêneros entram.
+
+- id: fin_top_margem_lucro
+  category: Bilheteria e Finanças
+  question: Filmes com maior margem de lucro, entre os que possuem receita e orçamento informados
+  reference_sql: |
+    SELECT m.titulo, f.lucro_usd * 1.0 / f.receita_usd AS margem_lucro
+    FROM fact_movies_performance AS f
+    JOIN dim_movies AS m ON m.sk_movie_id = f.sk_movie_id
+    WHERE f.receita_usd IS NOT NULL AND f.orcamento_usd > 0
+    ORDER BY margem_lucro DESC
+    LIMIT 500
+  compare:
+    mode: top_k
+    key_columns: [titulo]
+    order_column: margem_lucro
+    k: 10
+    value_column: margem_lucro
+  notes: >-
+    Enunciado não fixa N: interpretado como top 10. Margem = lucro_usd/receita_usd com divisão real
+    (o *1.0 evita divisão inteira do SQLite), exigindo receita_usd IS NOT NULL e orcamento_usd > 0.
+    Conferido: não existe receita_usd = 0 no banco, logo não há divisão por zero.
+
+- id: pop_top5_populares
+  category: Popularidade e Engajamento
+  question: Os 5 filmes mais populares
+  reference_sql: |
+    SELECT m.titulo, f.popularidade
+    FROM fact_movies_performance AS f
+    JOIN dim_movies AS m ON m.sk_movie_id = f.sk_movie_id
+    WHERE f.popularidade IS NOT NULL
+    ORDER BY f.popularidade DESC
+    LIMIT 500
+  compare:
+    mode: top_k
+    key_columns: [titulo]
+    order_column: popularidade
+    k: 5
+    value_column: popularidade
+  notes: Popularidade vem de fact_movies_performance.popularidade; top 5.
+
+- id: pop_divergencia_tmdb_imdb
+  category: Popularidade e Engajamento
+  question: Filmes com maior divergência entre a nota TMDB e a nota IMDb
+  reference_sql: |
+    SELECT m.titulo, ABS(f.nota_tmdb - f.nota_imdb) AS divergencia
+    FROM fact_movies_performance AS f
+    JOIN dim_movies AS m ON m.sk_movie_id = f.sk_movie_id
+    WHERE f.qtd_tmdb > 0 AND f.nota_imdb IS NOT NULL
+    ORDER BY divergencia DESC
+    LIMIT 500
+  compare:
+    mode: top_k
+    key_columns: [titulo]
+    order_column: divergencia
+    k: 10
+    value_column: divergencia
+  notes: >-
+    Divergência = ABS(nota_tmdb - nota_imdb). TMDB exige qtd_tmdb > 0 (nota 0 = sem votos) e IMDb exige
+    nota_imdb IS NOT NULL. Enunciado não fixa N: top 10.
+
+- id: pop_nota_imdb_por_ano
+  category: Popularidade e Engajamento
+  question: Nota média IMDb por ano de lançamento
+  reference_sql: |
+    SELECT m.ano_lancamento, AVG(f.nota_imdb) AS nota_media_imdb
+    FROM fact_movies_performance AS f
+    JOIN dim_movies AS m ON m.sk_movie_id = f.sk_movie_id
+    WHERE f.nota_imdb IS NOT NULL
+    GROUP BY m.ano_lancamento
+    ORDER BY m.ano_lancamento
+  compare:
+    mode: set
+    key_columns: [ano_lancamento]
+    value_column: nota_media_imdb
+  notes: >-
+    Média de nota_imdb por ano, só filmes com nota_imdb IS NOT NULL. Sem filtro de status (o enunciado
+    não pede "lançados"). Modo set: um ano por linha (2016 a 2028 no banco atual).
+
+- id: cast_ator_mais_filmes_5anos
+  category: Elenco e Equipe
+  question: Ator com mais participações em filmes lançados nos últimos 5 anos
+  reference_sql: |
+    SELECT p.nome_pessoa AS nome_ator, COUNT(DISTINCT m.sk_movie_id) AS qtd_filmes
+    FROM dim_people AS p
+    JOIN bridge_movie_person AS bp ON bp.sk_person_id = p.sk_person_id
+    JOIN dim_movies AS m ON m.sk_movie_id = bp.sk_movie_id
+    WHERE p.tipo_pessoa = 'Ator'
+      AND m.status_filme = 'Lançado'
+      AND m.ano_lancamento >= CAST(strftime('%Y','now') AS INT) - 5
+    GROUP BY p.nome_pessoa
+    ORDER BY qtd_filmes DESC
+    LIMIT 500
+  compare:
+    mode: top_k
+    key_columns: [nome_ator]
+    order_column: qtd_filmes
+    k: 1
+    value_column: qtd_filmes
+  notes: >-
+    Ator = tipo_pessoa='Ator'. "Últimos 5 anos" = ano_lancamento >= ano_atual-5 e status_filme='Lançado'.
+    Resposta no singular: top_k k=1 (empates na 1ª posição continuam aceitos pelo comparador).
+
+- id: cast_diretor_nota_media
+  category: Elenco e Equipe
+  question: Diretores com maior nota média (mínimo de 5 filmes)
+  reference_sql: |
+    SELECT p.nome_pessoa AS nome_diretor, AVG(f.nota_imdb) AS nota_media
+    FROM dim_people AS p
+    JOIN bridge_movie_person AS bp ON bp.sk_person_id = p.sk_person_id
+    JOIN fact_movies_performance AS f ON f.sk_movie_id = bp.sk_movie_id
+    WHERE p.tipo_pessoa = 'Diretor' AND f.nota_imdb IS NOT NULL
+    GROUP BY p.nome_pessoa
+    HAVING COUNT(DISTINCT f.sk_movie_id) >= 5
+    ORDER BY nota_media DESC
+    LIMIT 500
+  compare:
+    mode: top_k
+    key_columns: [nome_diretor]
+    order_column: nota_media
+    k: 10
+    value_column: nota_media
+  notes: >-
+    Diretor = tipo_pessoa='Diretor'. "Nota" sem qualificação = nota_imdb. Mínimo de 5 filmes conta apenas
+    filmes com nota (COUNT(DISTINCT sk_movie_id) no join com nota_imdb IS NOT NULL). Enunciado não fixa N: top 10.
+
+- id: cast_dupla_ator_diretor
+  category: Elenco e Equipe
+  question: Dupla ator–diretor que mais trabalhou junta
+  reference_sql: |
+    SELECT a.nome_pessoa AS nome_ator, d.nome_pessoa AS nome_diretor, COUNT(DISTINCT ba.sk_movie_id) AS qtd_filmes
+    FROM dim_people AS d
+    JOIN bridge_movie_person AS bd ON bd.sk_person_id = d.sk_person_id
+    JOIN bridge_movie_person AS ba ON ba.sk_movie_id = bd.sk_movie_id
+    JOIN dim_people AS a ON a.sk_person_id = ba.sk_person_id AND a.tipo_pessoa = 'Ator'
+    WHERE d.tipo_pessoa = 'Diretor' AND a.nome_pessoa <> d.nome_pessoa
+    GROUP BY a.nome_pessoa, d.nome_pessoa
+    ORDER BY qtd_filmes DESC
+    LIMIT 500
+  compare:
+    mode: top_k
+    key_columns: [nome_ator, nome_diretor]
+    order_column: qtd_filmes
+    k: 1
+    value_column: qtd_filmes
+  notes: >-
+    Dupla = mesmo sk_movie_id em bridge_movie_person, com um Ator e um Diretor, excluindo nome_ator = nome_diretor
+    (a mesma pessoa pode ter dois ids). COUNT(DISTINCT sk_movie_id). Singular: top_k k=1.
+
+- id: genre_qtd_filmes
+  category: Gêneros e Produtoras
+  question: Quantidade de filmes por gênero
+  reference_sql: |
+    SELECT g.nome_genero, COUNT(DISTINCT m.sk_movie_id) AS qtd_filmes
+    FROM dim_genres AS g
+    JOIN bridge_movie_genre AS bg ON bg.sk_genre_id = g.sk_genre_id
+    JOIN dim_movies AS m ON m.sk_movie_id = bg.sk_movie_id
+    GROUP BY g.nome_genero
+    ORDER BY qtd_filmes DESC
+  compare:
+    mode: set
+    key_columns: [nome_genero]
+    value_column: qtd_filmes
+  notes: >-
+    Contagem em todo o catálogo (sem filtro de status). Modo set: 19 gêneros, um por linha.
+
+- id: genre_produtora_maior_lucro
+  category: Gêneros e Produtoras
+  question: Produtora com maior lucro total
+  reference_sql: |
+    SELECT c.nome_produtora, SUM(f.lucro_usd) AS lucro_total
+    FROM dim_companies AS c
+    JOIN bridge_movie_company AS bc ON bc.sk_company_id = c.sk_company_id
+    JOIN fact_movies_performance AS f ON f.sk_movie_id = bc.sk_movie_id
+    WHERE f.receita_usd IS NOT NULL
+    GROUP BY c.nome_produtora
+    ORDER BY lucro_total DESC
+    LIMIT 500
+  compare:
+    mode: top_k
+    key_columns: [nome_produtora]
+    order_column: lucro_total
+    k: 1
+    value_column: lucro_total
+  notes: >-
+    Lucro total = SUM(lucro_usd) apenas de filmes com receita_usd IS NOT NULL (lucro sem receita é -orçamento).
+    Singular: top_k k=1.
+
+- id: genre_maior_margem_media
+  category: Gêneros e Produtoras
+  question: Gênero com maior margem de lucro média
+  reference_sql: |
+    SELECT g.nome_genero, AVG(f.lucro_usd * 1.0 / f.receita_usd) AS margem_media
+    FROM dim_genres AS g
+    JOIN bridge_movie_genre AS bg ON bg.sk_genre_id = g.sk_genre_id
+    JOIN fact_movies_performance AS f ON f.sk_movie_id = bg.sk_movie_id
+    WHERE f.receita_usd IS NOT NULL AND f.orcamento_usd > 0
+    GROUP BY g.nome_genero
+    ORDER BY margem_media DESC
+    LIMIT 500
+  compare:
+    mode: top_k
+    key_columns: [nome_genero]
+    order_column: margem_media
+    k: 1
+    value_column: margem_media
+  notes: >-
+    Margem por filme = lucro_usd/receita_usd (divisão real; *1.0 evita divisão inteira), com receita_usd
+    IS NOT NULL e orcamento_usd > 0; depois AVG por gênero. Singular: top_k k=1.
+
+- id: review_mais_avaliados
+  category: Avaliações dos Usuários
+  question: Filmes mais avaliados pelos usuários
+  reference_sql: |
+    SELECT m.titulo, r.qtd_avaliacoes_usuarios
+    FROM dim_reviews AS r
+    JOIN dim_movies AS m ON m.sk_movie_id = r.sk_movie_id
+    ORDER BY r.qtd_avaliacoes_usuarios DESC
+    LIMIT 500
+  compare:
+    mode: top_k
+    key_columns: [titulo]
+    order_column: qtd_avaliacoes_usuarios
+    k: 10
+    value_column: qtd_avaliacoes_usuarios
+  notes: >-
+    Mais avaliados = dim_reviews.qtd_avaliacoes_usuarios. Enunciado não fixa N: top 10. Títulos podem
+    repetir (obras homônimas); a value_column desempata linhas de mesmo título.
+
+- id: review_divergencia_usuarios_imdb
+  category: Avaliações dos Usuários
+  question: Filmes em que a nota média dos usuários mais diverge da nota IMDb
+  reference_sql: |
+    SELECT m.titulo, ABS(r.nota_media_usuarios - f.nota_imdb) AS divergencia
+    FROM dim_reviews AS r
+    JOIN fact_movies_performance AS f ON f.sk_movie_id = r.sk_movie_id
+    JOIN dim_movies AS m ON m.sk_movie_id = r.sk_movie_id
+    WHERE f.nota_imdb IS NOT NULL
+    ORDER BY divergencia DESC
+    LIMIT 500
+  compare:
+    mode: top_k
+    key_columns: [titulo]
+    order_column: divergencia
+    k: 10
+    value_column: divergencia
+  notes: >-
+    Divergência = ABS(nota_media_usuarios - nota_imdb), exigindo nota_imdb IS NOT NULL. Enunciado não
+    fixa N: top 10.

@@ -1,0 +1,14 @@
+# Banco (554 MB) e artefatos locais
+data/*.db
+data/*.db-*
+cinerocket-db/
+cinerocket-db.zip
+.env
+.cache/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/

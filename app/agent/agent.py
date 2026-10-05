@@ -30,7 +30,9 @@ class Deps:
     last_result: QueryResult | None = None
 
 
+# A docstring abaixo é enviada ao LLM como descrição da ferramenta de saída (`final_result`).
 class AgentAnswer(BaseModel):
+    """Resposta final ao usuário, com o SQL usado e as premissas adotadas."""
 
     answer: str = Field(
         description="Resposta à pergunta do usuário, em português do Brasil, citando os números vindos da consulta."
@@ -65,8 +67,13 @@ def build_agent(model: Model) -> Agent[Deps, AgentAnswer]:
     )
 
     # sequential: chamadas paralelas da ferramenta disputariam `ctx.deps.last_*`.
+    # A docstring de `run_sql` é enviada ao LLM como descrição da ferramenta.
     @agent.tool(retries=TOOL_RETRIES, sequential=True)
     async def run_sql(ctx: RunContext[Deps], sql: str) -> dict[str, Any]:
+        """Executa UMA consulta SELECT (SQLite, somente leitura) sobre a camada Gold e devolve as linhas.
+
+        Chame com a consulta final que responde à pergunta; o esquema já está no prompt.
+        """
         try:
             safe_sql, result = await asyncio.to_thread(run_safe_query, sql, ctx.deps.settings)
         except SQLValidationError as exc:

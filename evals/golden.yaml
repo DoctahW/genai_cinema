@@ -107,7 +107,7 @@
     SELECT m.ano_lancamento, AVG(f.nota_imdb) AS nota_media_imdb
     FROM fact_movies_performance AS f
     JOIN dim_movies AS m ON m.sk_movie_id = f.sk_movie_id
-    WHERE f.nota_imdb IS NOT NULL
+    WHERE f.nota_imdb IS NOT NULL AND m.status_filme = 'Lançado'
     GROUP BY m.ano_lancamento
     ORDER BY m.ano_lancamento
   compare:
@@ -115,8 +115,9 @@
     key_columns: [ano_lancamento]
     value_column: nota_media_imdb
   notes: >-
-    Média de nota_imdb por ano, só filmes com nota_imdb IS NOT NULL. Sem filtro de status (o enunciado
-    não pede "lançados"). Modo set: um ano por linha (2016 a 2028 no banco atual).
+    Média de nota_imdb por ano, só filmes com nota_imdb IS NOT NULL e status_filme = 'Lançado': mesma regra
+    de status do prompt ("ano de lançamento" de filme em produção ou planejado é só previsão, e há ~1.150 deles
+    com nota IMDb em 2023-2024). Modo set: um ano por linha.
 
 - id: cast_ator_mais_filmes_5anos
   category: Elenco e Equipe

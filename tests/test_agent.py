@@ -138,6 +138,31 @@ async def test_retry_after_invalid_sql(settings: Settings, mini_db_path: Path) -
 
 
 @pytest.mark.anyio
+async def test_missing_column_retry_names_the_right_table(settings: Settings) -> None:
+    def second(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        retry = _retry_prompt(messages)
+        assert retry is not None
+        assert "fact_movies_performance" in retry
+        return _tool_call(
+            "SELECT m.titulo, f.popularidade FROM dim_movies m "
+            "JOIN fact_movies_performance f ON f.sk_movie_id = m.sk_movie_id ORDER BY f.popularidade DESC"
+        )
+
+    responders: list[Responder] = [
+        lambda messages, info: _tool_call("SELECT m.titulo, m.popularidade FROM dim_movies m"),
+        second,
+        lambda messages, info: _final(info, "Filme Lucrativo é o mais popular."),
+    ]
+    model, calls = _scripted(responders)
+
+    outcome = await ask(build_agent(model), "Os filmes mais populares", settings)
+
+    assert len(calls) == 3
+    assert outcome.result is not None
+    assert outcome.result.rows[0] == ["Filme Lucrativo", 90.5]
+
+
+@pytest.mark.anyio
 async def test_out_of_scope_answers_without_query(settings: Settings) -> None:
     responders: list[Responder] = [
         lambda messages, info: _final(info, "Esta pergunta está fora do catálogo de filmes."),

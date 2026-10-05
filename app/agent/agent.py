@@ -1,5 +1,7 @@
 import asyncio
+import difflib
 import logging
+import re
 import sqlite3
 from dataclasses import dataclass
 from typing import Any
@@ -10,7 +12,7 @@ from pydantic_ai.messages import ModelResponse
 from pydantic_ai.models import Model
 
 from app.agent.llm import classify_llm_error
-from app.agent.prompts import build_system_prompt
+from app.agent.prompts import TABLE_DOCS, build_system_prompt
 from app.config import Settings
 from app.db.connection import QueryResult, QueryTimeout
 from app.db.guardrails import SQLValidationError
@@ -21,6 +23,28 @@ MAX_ROWS_TO_MODEL = 50
 
 TOOL_RETRIES = 10
 # Tentativas da ferramenta; o teto efetivo de chamadas é `UsageLimits.request_limit`.
+
+_COLUMN_TABLES: dict[str, list[str]] = {
+    column: [table.name for table in TABLE_DOCS if any(c.name == column for c in table.columns)]
+    for column in {c.name for table in TABLE_DOCS for c in table.columns}
+}
+
+_NO_SUCH_COLUMN = re.compile(r"no such column: (?:\w+\.)?(\w+)")
+
+
+def _column_hint(error: str) -> str:
+    """Aponta a tabela certa (ou a coluna parecida, se houve erro de digitação) para o LLM acertar na próxima."""
+    match = _NO_SUCH_COLUMN.search(error)
+    if not match:
+        return ""
+    column = match.group(1)
+    if column not in _COLUMN_TABLES:
+        close = difflib.get_close_matches(column, _COLUMN_TABLES, n=1, cutoff=0.8)
+        if not close:
+            return ""
+        column = close[0]
+        return f" Você quis dizer {column}? Fica em: {', '.join(_COLUMN_TABLES[column])}."
+    return f" A coluna {column} fica em: {', '.join(_COLUMN_TABLES[column])} (junte por sk_movie_id)."
 
 
 @dataclass
@@ -86,7 +110,7 @@ def build_agent(model: Model) -> Agent[Deps, AgentAnswer]:
             raise ModelRetry(f"{exc} Reformule com uma consulta mais simples ou com mais filtros.") from exc
         except sqlite3.Error as exc:
             logger.info("run_sql erro do SQLite: %s", exc)
-            raise ModelRetry(f"Erro do SQLite ao executar a consulta: {exc}") from exc
+            raise ModelRetry(f"Erro do SQLite ao executar a consulta: {exc}.{_column_hint(str(exc))}") from exc
 
         logger.info("run_sql ok: %d linha(s)", result.row_count)
         ctx.deps.last_sql = safe_sql

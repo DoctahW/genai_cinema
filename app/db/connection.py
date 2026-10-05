@@ -6,6 +6,10 @@ from urllib.parse import quote
 
 from pydantic import BaseModel
 
+# O banco tem ~554 MB: mapeá-lo inteiro evita uma syscall de leitura por página. Medido na dupla
+# ator–diretor: 11,4 s sem mmap, 6,6 s com. Seguro porque a conexão é somente leitura.
+MMAP_SIZE_BYTES = 1 << 30
+
 
 class QueryTimeout(Exception):
     """Consulta interrompida por exceder o tempo limite configurado."""
@@ -28,6 +32,7 @@ def connect_readonly(db_path: Path) -> sqlite3.Connection:
     try:
         conn.execute("PRAGMA query_only=ON")
         conn.setlimit(sqlite3.SQLITE_LIMIT_ATTACHED, 0)
+        conn.execute(f"PRAGMA mmap_size={MMAP_SIZE_BYTES}")
     except Exception:
         conn.close()
         raise

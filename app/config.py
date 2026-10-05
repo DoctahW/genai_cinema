@@ -19,7 +19,7 @@ class Settings(BaseSettings):
         min_length=1,
     )
     db_path: Path = Path("data/cinerocket.db")
-    sql_timeout_s: float = Field(default=10, gt=0)
+    sql_timeout_s: float = Field(default=20, gt=0)
     sql_max_rows: int = Field(default=200, gt=0)
     agent_request_limit: int = Field(default=4, ge=1)
     cache_path: Path = Path(".cache/answers.db")

@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     openrouter_api_key: SecretStr = Field(min_length=1)
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     llm_models: Annotated[list[str], NoDecode] = Field(
-        default=["nvidia/nemotron-3.5-lightning:free", "z-ai/glm-5.2:free", "openrouter/free"],
+        default=["nvidia/nemotron-3.5-lightning:free", "google/gemma-4-26b-a4b-it:free", "openrouter/free"],
         min_length=1,
     )
     db_path: Path = Path("data/cinerocket.db")

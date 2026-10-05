@@ -11,7 +11,7 @@ from datetime import UTC, datetime, timedelta, timezone
 import httpx
 import pytest
 from pydantic_ai import Agent
-from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
+from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError, UnexpectedModelBehavior
 
 from app.agent.llm import (
     ModelsUnavailable,
@@ -207,12 +207,16 @@ def test_classify_llm_error_auth_error_is_none() -> None:
 def test_classify_llm_error_unreachable_model_is_models_unavailable() -> None:
     assert isinstance(classify_llm_error(ModelHTTPError(503, "m", {"error": {"message": "down"}})), ModelsUnavailable)
     assert isinstance(classify_llm_error(ModelAPIError("m", "connection error")), ModelsUnavailable)
+    # Fora do `Model.request` (ex.: retries do agente esgotados), segue para o handler 502.
+    assert classify_llm_error(UnexpectedModelBehavior("Tool 'run_sql' exceeded max retries count of 10")) is None
 
 
 def test_should_fallback_predicate() -> None:
     assert should_fallback(ModelHTTPError(429, "m", UPSTREAM_429))
     assert should_fallback(ModelHTTPError(503, "m", {"error": {"message": "unavailable"}}))
     assert should_fallback(ModelAPIError("m", "connection error"))
+    assert should_fallback(ModelHTTPError(404, "m", {"error": {"message": "No endpoints found", "code": 404}}))
+    assert should_fallback(UnexpectedModelBehavior("Invalid response from openai chat completions endpoint"))
     assert not should_fallback(ModelHTTPError(429, "m", DAILY_429))
     assert not should_fallback(ModelHTTPError(401, "m", {"error": {"message": "No auth"}}))
     assert not should_fallback(ModelHTTPError(400, "m", {"error": {"message": "bad"}}))

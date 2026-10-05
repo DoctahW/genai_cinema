@@ -5,7 +5,12 @@ from typing import Any
 import httpx
 from openai import AsyncOpenAI
 from pydantic import BaseModel
-from pydantic_ai.exceptions import FallbackExceptionGroup, ModelAPIError, ModelHTTPError
+from pydantic_ai.exceptions import (
+    FallbackExceptionGroup,
+    ModelAPIError,
+    ModelHTTPError,
+    UnexpectedModelBehavior,
+)
 from pydantic_ai.models import Model
 from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.models.openai import OpenAIChatModel
@@ -104,7 +109,12 @@ def should_fallback(exc: Exception) -> bool:
     if is_upstream_rate_limit(exc):
         return True
     if isinstance(exc, ModelHTTPError):
-        return 500 <= exc.status_code < 600
+        # 404: o modelo saiu do catálogo do OpenRouter; os outros da cadeia continuam válidos.
+        return exc.status_code == 404 or 500 <= exc.status_code < 600
+    # Dentro de `Model.request`, UnexpectedModelBehavior é resposta malformada do provedor
+    # (ex.: `finish_reason` inválido); outro modelo pode responder direito.
+    if isinstance(exc, UnexpectedModelBehavior):
+        return True
     # Erros sem status HTTP (conexão, timeout, stream interrompido): outro modelo pode responder.
     return isinstance(exc, ModelAPIError)
 
@@ -130,8 +140,9 @@ def classify_llm_error(exc: BaseException) -> QuotaExceeded | ModelsUnavailable 
         if any(_is_daily_quota_error(member) for member in _leaf_exceptions(exc)):
             return QuotaExceeded(next_reset(datetime.now(UTC)))
         return ModelsUnavailable()
-    # Cadeia de um só modelo: erros elegíveis a fallback chegam isolados (sem grupo).
-    if isinstance(exc, Exception) and should_fallback(exc):
+    # Cadeia de um só modelo: erros elegíveis a fallback chegam isolados (sem grupo). UnexpectedModelBehavior
+    # fica de fora porque, fora do `Model.request`, também sinaliza retries esgotados do agente (502).
+    if isinstance(exc, Exception) and not isinstance(exc, UnexpectedModelBehavior) and should_fallback(exc):
         return ModelsUnavailable()
     return None
 

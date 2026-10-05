@@ -1,0 +1,96 @@
+{
+  "generated_at": "2026-10-05T15:06:46",
+  "base_url": "http://127.0.0.1:8000",
+  "quota": {
+    "used": 0,
+    "limit": 50,
+    "remaining": 50,
+    "reset_at_brt": "21:00"
+  },
+  "stopped_on_429": false,
+  "totals": {
+    "total": 6,
+    "passed": 2,
+    "llm_calls": 9
+  },
+  "results": [
+    {
+      "id": "fin_lucro_medio_genero",
+      "category": "Bilheteria e Finanças",
+      "question": "Lucro médio por gênero, considerando apenas filmes com receita informada",
+      "passed": true,
+      "reason": "19 linha(s) conferem com a referência",
+      "status": 200,
+      "llm_calls": 2,
+      "model_used": "nvidia/nemotron-3.5-lightning:free",
+      "cached": false,
+      "latency_ms": 28561.5,
+      "error": null
+    },
+    {
+      "id": "pop_top5_populares",
+      "category": "Popularidade e Engajamento",
+      "question": "Os 5 filmes mais populares",
+      "passed": true,
+      "reason": "5 linha(s) do agente conferem com top 5",
+      "status": 200,
+      "llm_calls": 2,
+      "model_used": "nvidia/nemotron-3.5-lightning:free",
+      "cached": false,
+      "latency_ms": 18402.1,
+      "error": null
+    },
+    {
+      "id": "pop_divergencia_tmdb_imdb",
+      "category": "Popularidade e Engajamento",
+      "question": "Filmes com maior divergência entre a nota TMDB e a nota IMDb",
+      "passed": false,
+      "reason": "falha de transporte: timed out",
+      "status": 0,
+      "llm_calls": 0,
+      "model_used": null,
+      "cached": null,
+      "latency_ms": null,
+      "error": "timed out"
+    },
+    {
+      "id": "pop_nota_imdb_por_ano",
+      "category": "Popularidade e Engajamento",
+      "question": "Nota média IMDb por ano de lançamento",
+      "passed": false,
+      "reason": "agente devolveu 11 linha(s); a referência tem 13",
+      "status": 200,
+      "llm_calls": 3,
+      "model_used": "nvidia/nemotron-3.5-lightning:free",
+      "cached": false,
+      "latency_ms": 65109.9,
+      "error": null
+    },
+    {
+      "id": "cast_diretor_nota_media",
+      "category": "Elenco e Equipe",
+      "question": "Diretores com maior nota média (mínimo de 5 filmes)",
+      "passed": false,
+      "reason": "HTTP 422: A pergunta exigiu chamadas demais ao modelo; reformule de forma mais específica.",
+      "status": 422,
+      "llm_calls": 0,
+      "model_used": null,
+      "cached": null,
+      "latency_ms": null,
+      "error": "A pergunta exigiu chamadas demais ao modelo; reformule de forma mais específica."
+    },
+    {
+      "id": "genre_produtora_maior_lucro",
+      "category": "Gêneros e Produtoras",
+      "question": "Produtora com maior lucro total",
+      "passed": false,
+      "reason": "linha 1 do agente não casa com nenhuma linha aceitável do top 1: agente=['Marvel Studios', 63936626417.88]; esperado: nome_produtora='Marvel Studios', lucro_total=16163757726",
+      "status": 200,
+      "llm_calls": 2,
+      "model_used": "nvidia/nemotron-3.5-lightning:free",
+      "cached": false,
+      "latency_ms": 36598.8,
+      "error": null
+    }
+  ]
+}

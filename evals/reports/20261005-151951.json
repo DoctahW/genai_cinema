@@ -1,0 +1,70 @@
+{
+  "generated_at": "2026-10-05T15:19:51",
+  "base_url": "http://127.0.0.1:8000",
+  "quota": {
+    "used": 28,
+    "limit": 50,
+    "remaining": 22,
+    "reset_at_brt": "21:00"
+  },
+  "stopped_on_429": false,
+  "totals": {
+    "total": 4,
+    "passed": 4,
+    "llm_calls": 9
+  },
+  "results": [
+    {
+      "id": "fin_top10_receita_brl",
+      "category": "Bilheteria e Finanças",
+      "question": "Top 10 filmes com maior receita em R$",
+      "passed": true,
+      "reason": "10 linha(s) do agente conferem com top 10",
+      "status": 200,
+      "llm_calls": 2,
+      "model_used": "nvidia/nemotron-3.5-lightning:free",
+      "cached": false,
+      "latency_ms": 14519.6,
+      "error": null
+    },
+    {
+      "id": "fin_top_margem_lucro",
+      "category": "Bilheteria e Finanças",
+      "question": "Filmes com maior margem de lucro, entre os que possuem receita e orçamento informados",
+      "passed": true,
+      "reason": "10 linha(s) do agente conferem com top 10",
+      "status": 200,
+      "llm_calls": 2,
+      "model_used": "nvidia/nemotron-3.5-lightning:free",
+      "cached": false,
+      "latency_ms": 24627.3,
+      "error": null
+    },
+    {
+      "id": "cast_dupla_ator_diretor",
+      "category": "Elenco e Equipe",
+      "question": "Dupla ator–diretor que mais trabalhou junta",
+      "passed": true,
+      "reason": "1 linha(s) do agente conferem com top 1",
+      "status": 200,
+      "llm_calls": 2,
+      "model_used": "nvidia/nemotron-3.5-lightning:free",
+      "cached": false,
+      "latency_ms": 48750.8,
+      "error": null
+    },
+    {
+      "id": "genre_maior_margem_media",
+      "category": "Gêneros e Produtoras",
+      "question": "Gênero com maior margem de lucro média",
+      "passed": true,
+      "reason": "1 linha(s) do agente conferem com top 1",
+      "status": 200,
+      "llm_calls": 3,
+      "model_used": "nvidia/nemotron-3.5-lightning:free",
+      "cached": false,
+      "latency_ms": 62604.1,
+      "error": null
+    }
+  ]
+}

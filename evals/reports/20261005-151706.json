@@ -1,0 +1,44 @@
+{
+  "generated_at": "2026-10-05T15:17:06",
+  "base_url": "http://127.0.0.1:8000",
+  "quota": {
+    "used": 28,
+    "limit": 50,
+    "remaining": 22,
+    "reset_at_brt": "21:00"
+  },
+  "stopped_on_429": false,
+  "totals": {
+    "total": 2,
+    "passed": 2,
+    "llm_calls": 4
+  },
+  "results": [
+    {
+      "id": "pop_divergencia_tmdb_imdb",
+      "category": "Popularidade e Engajamento",
+      "question": "Filmes com maior divergência entre a nota TMDB e a nota IMDb",
+      "passed": true,
+      "reason": "10 linha(s) do agente conferem com top 10",
+      "status": 200,
+      "llm_calls": 2,
+      "model_used": "nvidia/nemotron-3.5-lightning:free",
+      "cached": false,
+      "latency_ms": 20645.3,
+      "error": null
+    },
+    {
+      "id": "genre_produtora_maior_lucro",
+      "category": "Gêneros e Produtoras",
+      "question": "Produtora com maior lucro total",
+      "passed": true,
+      "reason": "1 linha(s) do agente conferem com top 1",
+      "status": 200,
+      "llm_calls": 2,
+      "model_used": "nvidia/nemotron-3.5-lightning:free",
+      "cached": false,
+      "latency_ms": 104960.4,
+      "error": null
+    }
+  ]
+}

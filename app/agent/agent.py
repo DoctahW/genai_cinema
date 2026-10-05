@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import sqlite3
 from dataclasses import dataclass
 from typing import Any
@@ -15,6 +16,7 @@ from app.db.connection import QueryResult, QueryTimeout
 from app.db.guardrails import SQLValidationError
 from app.db.query import run_safe_query
 
+logger = logging.getLogger("app.agent")
 MAX_ROWS_TO_MODEL = 50
 
 TOOL_RETRIES = 10
@@ -77,12 +79,16 @@ def build_agent(model: Model) -> Agent[Deps, AgentAnswer]:
         try:
             safe_sql, result = await asyncio.to_thread(run_safe_query, sql, ctx.deps.settings)
         except SQLValidationError as exc:
+            logger.info("run_sql recusado: %s", exc)
             raise ModelRetry(str(exc)) from exc
         except QueryTimeout as exc:
+            logger.info("run_sql timeout: %s", exc)
             raise ModelRetry(f"{exc} Reformule com uma consulta mais simples ou com mais filtros.") from exc
         except sqlite3.Error as exc:
+            logger.info("run_sql erro do SQLite: %s", exc)
             raise ModelRetry(f"Erro do SQLite ao executar a consulta: {exc}") from exc
 
+        logger.info("run_sql ok: %d linha(s)", result.row_count)
         ctx.deps.last_sql = safe_sql
         ctx.deps.last_result = result
         return {

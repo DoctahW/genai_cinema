@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 class ColumnDoc(BaseModel):
     """Documentação de uma coluna da camada Gold."""
+
     name: str
     type: str
     description: str
@@ -12,6 +13,7 @@ class ColumnDoc(BaseModel):
 
 class TableDoc(BaseModel):
     """Documentação de uma tabela da camada Gold."""
+
     name: str
     description: str
     columns: list[ColumnDoc]
@@ -359,27 +361,43 @@ def build_system_prompt() -> str:
         "# Esquema\n" + _render_ddl(),
         "# Junções\n"
         "Tudo liga por sk_movie_id, usando dim_movies como centro.\n"
+        "- dim_movies tem só dados cadastrais (titulo, ano_lancamento, status_filme, idioma, duração). popularidade, "
+        "nota_tmdb, qtd_tmdb, nota_imdb, qtd_imdb, orçamento, receita e lucro ficam em fact_movies_performance: "
+        "junte f.sk_movie_id = m.sk_movie_id para trazer o titulo.\n"
         "- bridge_movie_genre → dim_genres por sk_genre_id.\n"
         "- bridge_movie_person → dim_people por sk_person_id.\n"
         "- bridge_movie_company → dim_companies por sk_company_id.\n"
         "- dim_reviews é 1:1 com o filme (agregada); movie_reviews guarda o texto de cada avaliação individual.",
         "# Regras de negócio\n"
-        '- "Receita" = "Faturamento" = "Bilheteria" = colunas receita_*. Moeda padrão USD; se a pergunta pedir '
-        '"R$" ou "reais", use receita_brl (já convertido — não converta).\n'
-        "- Lucro e margem só valem com receita_usd IS NOT NULL. Margem = lucro_usd * 1.0 / receita_usd (os valores "
-        "monetários são inteiros no SQLite: sem o * 1.0 a divisão é inteira e dá 0) e exige também "
-        "orcamento_usd > 0. Declare a fórmula usada nas assumptions.\n"
+        '- "Receita" = "Faturamento" = "Bilheteria" = colunas receita_*. Sem "R$" ou "reais" na pergunta, use '
+        'SEMPRE as colunas _usd (receita, lucro, orçamento); com "R$" ou "reais", use as _brl (já convertidas — não '
+        "converta).\n"
+        "- Todo cálculo com lucro_* (soma, média, ranking, margem) exige WHERE receita_usd IS NOT NULL, mesmo que a "
+        "pergunta não peça: sem receita, o lucro vem como -orçamento. Margem = lucro_usd * 1.0 / receita_usd (os "
+        "valores monetários são inteiros no SQLite: sem o * 1.0 a divisão é inteira e dá 0) e exige também "
+        "orcamento_usd > 0 (esse filtro de orçamento vale só para margem; lucro total ou médio usa apenas "
+        "receita_usd IS NOT NULL). Declare a fórmula usada nas assumptions. Padrão para lucro agregado (troque a "
+        "dimensão conforme a pergunta): SELECT m.ano_lancamento, SUM(f.lucro_usd) AS lucro_total_usd FROM "
+        "fact_movies_performance f JOIN dim_movies m ON m.sk_movie_id = f.sk_movie_id WHERE f.receita_usd IS NOT "
+        "NULL GROUP BY m.ano_lancamento ORDER BY lucro_total_usd DESC.\n"
         "- Notas TMDB exigem qtd_tmdb > 0 (nota_tmdb=0 com qtd_tmdb=0 significa sem votos). Notas IMDb exigem "
-        'nota_imdb IS NOT NULL. Todas as notas vão de 0 a 10 e são comparáveis sem normalizar. "Nota" sem '
-        'qualificação (ex.: "diretores com maior nota média") = nota_imdb; declare isso nas assumptions.\n'
+        'nota_imdb IS NOT NULL. Todas as notas vão de 0 a 10 e são comparáveis sem normalizar. "Nota" ou "nota '
+        'média" sem qualificação (ex.: "diretores com maior nota média") = f.nota_imdb; use '
+        "dim_reviews.nota_media_usuarios só quando a pergunta falar de usuários. Declare a nota usada nas "
+        "assumptions.\n"
         "- \"Últimos N anos\" = ano_lancamento >= CAST(strftime('%Y','now') AS INT) - N AND status_filme='Lançado'.\n"
         "- Dupla ator–diretor: dim_people tem uma linha por (nome, tipo_pessoa) e a mesma pessoa pode aparecer como "
         "Ator e Diretor com ids diferentes. Junte ator (tipo_pessoa='Ator') e diretor (tipo_pessoa='Diretor') pelo "
         'mesmo sk_movie_id em bridge_movie_person e exclua nome_ator = nome_diretor. "Mínimo de N filmes" = '
-        "HAVING COUNT(DISTINCT sk_movie_id) >= N.\n"
+        "HAVING COUNT(DISTINCT sk_movie_id) >= N. Use esta estrutura (é a mais rápida): SELECT a.nome_pessoa AS "
+        "nome_ator, d.nome_pessoa AS nome_diretor, COUNT(DISTINCT ba.sk_movie_id) AS qtd_filmes FROM dim_people a "
+        "JOIN bridge_movie_person ba ON ba.sk_person_id = a.sk_person_id JOIN bridge_movie_person bd ON "
+        "bd.sk_movie_id = ba.sk_movie_id JOIN dim_people d ON d.sk_person_id = bd.sk_person_id WHERE "
+        "a.tipo_pessoa = 'Ator' AND d.tipo_pessoa = 'Diretor' AND a.nome_pessoa <> d.nome_pessoa "
+        "GROUP BY a.nome_pessoa, d.nome_pessoa ORDER BY qtd_filmes DESC.\n"
         "- Mais avaliados = dim_reviews.qtd_avaliacoes_usuarios; nota dos usuários = dim_reviews.nota_media_usuarios.\n"
-        "- Sempre traga titulo (ou nome); nunca devolva só os ids sk_*. Ordene e limite rankings (ex.: top 10) quando "
-        "a pergunta pedir.",
+        "- Sempre traga titulo (ou nome) e nunca coloque colunas sk_* no SELECT. Ordene e limite rankings (ex.: top "
+        "10) quando a pergunta pedir.",
         "# Tradução de gêneros (PT → EN, valores exatos do banco)\n" + genres,
         "# Valores de status (exatos)\n"
         + statuses
@@ -388,11 +406,13 @@ def build_system_prompt() -> str:
         "- Use apenas SELECT/WITH no dialeto SQLite, uma única instrução e apenas as 10 tabelas listadas acima.\n"
         "- Resultados volumosos são cortados: a ferramenta devolve no máximo ~50 linhas e um campo truncated.",
         "# Como responder\n"
-        "- Chame run_sql UMA vez com a consulta final; o esquema já está aqui, não gaste chamadas explorando.\n"
+        "- Chame run_sql UMA vez com a consulta final: não faça consultas de teste ou de verificação e não consulte "
+        "tabelas de sistema — o esquema completo já está aqui.\n"
         "- Se a ferramenta devolver erro, corrija a consulta e tente de novo.\n"
         "- Perguntas fora do catálogo de filmes: recuse educadamente SEM chamar a ferramenta (sql nulo).\n"
         "- Nunca invente números que não vieram da consulta.\n"
-        "- Resposta final em PT-BR, objetiva, citando os principais valores.\n"
+        "- Resposta final em PT-BR, objetiva, citando os principais itens pelo nome e seus valores (não só "
+        "descreva a consulta).\n"
         "- Preencha sql com a consulta usada e assumptions com as premissas (filtros aplicados, moeda, fórmula).",
     ]
     return "\n\n".join(sections)

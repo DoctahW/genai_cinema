@@ -18,7 +18,7 @@ from app.agent.prompts import PROMPT_VERSION
 from app.agent.service import AskService
 from app.config import Settings
 
-LOG_KEYS = {"question", "sql", "model_used", "llm_calls", "latency_ms", "cached", "error"}
+LOG_KEYS = {"question", "sql", "model_used", "llm_calls", "latency_ms", "cached", "error", "error_detail"}
 
 
 def _tool_call(sql: str) -> ModelResponse:
@@ -155,6 +155,7 @@ async def test_one_json_log_per_question(settings: Settings, caplog: pytest.LogC
         error_payload = json.loads(failed[0].message)
         assert set(error_payload) == LOG_KEYS
         assert error_payload["error"] == "UsageLimitExceeded"
+        assert error_payload["error_detail"]
         assert error_payload["sql"] is None
         assert error_payload["model_used"] is None
         assert error_payload["llm_calls"] is None

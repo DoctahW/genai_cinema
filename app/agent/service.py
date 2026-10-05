@@ -60,7 +60,7 @@ class AskService:
             outcome = await agent_ask(self._agent, question, self._settings)
         except Exception as exc:
             # Erros não entram no cache: a próxima tentativa volta a chamar o modelo.
-            _log(question, None, error=type(exc).__name__, latency_ms=_elapsed_ms(started))
+            _log(question, None, error=exc, latency_ms=_elapsed_ms(started))
             raise
 
         result = AskResult(
@@ -85,7 +85,7 @@ def _elapsed_ms(started: float) -> float:
     return round((time.perf_counter() - started) * 1000, 1)
 
 
-def _log(question: str, result: AskResult | None, *, error: str | None, latency_ms: float | None = None) -> None:
+def _log(question: str, result: AskResult | None, *, error: Exception | None, latency_ms: float | None = None) -> None:
     logger.info(
         json.dumps(
             {
@@ -95,7 +95,8 @@ def _log(question: str, result: AskResult | None, *, error: str | None, latency_
                 "llm_calls": result.llm_calls if result else None,
                 "latency_ms": result.latency_ms if result else latency_ms,
                 "cached": result.cached if result else False,
-                "error": error,
+                "error": type(error).__name__ if error else None,
+                "error_detail": str(error) if error else None,
             },
             ensure_ascii=False,
         )
